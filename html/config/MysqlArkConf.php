@@ -9,6 +9,6 @@ class MysqlArkConf
     static public $mysql_passwd = 'vagrant';
     static public $mysql_dbname = 'ark';
     static public $mysql_port = 3306;
-    static public $path_db_backup = "/Applications/XAMPP/htdocs/ark/admin/db/backup/";
+    static public $path_db_backup = "/var/www/vagrant/html/admin/db/backup";
 
 }

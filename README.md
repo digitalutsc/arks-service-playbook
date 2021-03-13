@@ -2,7 +2,12 @@
 
 ## Installation
 
-* Clone this repo to your machine, by running `git clone https://github.com/digitalutsc/ark-services-playbook.git`
+* Clone this repo to your machine, by running:
+
+```
+git clone https://github.com/digitalutsc/ark-services-playbook.git
+```
+
 * To run the VM, cd `path/ark-services-playbook`, then run `vagrant up`
 
 * When VM is running, to remote access run `vagrant ssh`
@@ -12,7 +17,7 @@
     ```
     * Enable `curl` extension for PHP of the VM: 
     * Run `sudo nano /etc/php/7.4/apache2/php.ini`
-    * Add `extension=curl` at the end of file.
+    * Add `extension=curl` to the file.
     * Restart apache by running `sudo service apache2 restart`
 
 * In local machine, 

@@ -16,8 +16,8 @@ git clone https://github.com/digitalutsc/ark-services-playbook.git
         127.0.0.1       ark.demo
     ```
     * Enable `curl` extension for PHP of the VM: 
-    * Run `sudo nano /etc/php/7.4/apache2/php.ini`
-    * Add `extension=curl` to the file.
+      * Run `sudo nano /etc/php/7.4/apache2/php.ini`
+      * Add `extension=curl` to the file.
     * Restart apache by running `sudo service apache2 restart`
 
 * In local machine, 

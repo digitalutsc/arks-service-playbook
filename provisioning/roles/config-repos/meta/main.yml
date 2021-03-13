@@ -1,0 +1,6 @@
+---
+dependencies:
+  - role: iambryancs.repo-webtatic
+    when: ansible_os_family == "RedHat"
+  - role: iambryancs.ppa-ondrej
+    when: ansible_os_family == "Debian"

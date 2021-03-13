@@ -1,0 +1,12 @@
+# playbook.yml
+---
+- hosts: all
+  become: true
+  vars_files:
+    - vars/main.yml    
+    - "vars/{{ ansible_os_family }}.yml"  
+  roles:    
+    - config-repos
+    - geerlingguy.mysql
+    - geerlingguy.apache
+    - geerlingguy.php

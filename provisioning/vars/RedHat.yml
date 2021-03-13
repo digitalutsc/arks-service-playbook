@@ -1,0 +1,11 @@
+# /roles/extra/vars/RedHat.yml
+---
+apache_user: 'apache'
+php_packages:
+  - php74w
+  - php74w-cli
+  - php74w-common
+  - php74w-dom
+  - php74w-gd
+  - php74w-mysql
+  - php7.4-curl

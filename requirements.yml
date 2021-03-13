@@ -1,0 +1,6 @@
+---
+- src: iambryancs.ppa-ondrej  
+- src: iambryancs.repo-webtatic  
+- src: geerlingguy.mysql
+- src: geerlingguy.apache
+- src: geerlingguy.php

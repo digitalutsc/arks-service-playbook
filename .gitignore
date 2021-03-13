@@ -1,0 +1,14 @@
+# Created by https://www.gitignore.io
+
+### Vagrant ###
+.vagrant/
+
+
+### Composer ###
+composer.phar
+vendor/
+
+### Ansible Roles ###
+provisioning/roles/geerling*
+provisioning/roles/iambryancs*
+

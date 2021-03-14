@@ -8,7 +8,7 @@
 git clone https://github.com/digitalutsc/ark-services-playbook.git
 ```
 
-2. To run the VM, cd `path/ark-services-playbook`, then run `vagrant up`
+2. To run the VM, `cd path/ark-services-playbook`, then run `vagrant up`
 3. When VM is running, to remote access run `vagrant ssh`
     * After access the VM, run `sudo nano /etc/hosts`, then adding the following:
     ```

@@ -9,6 +9,10 @@ composer.phar
 vendor/
 
 ### Ansible Roles ###
-provisioning/roles/geerling*
+provisioning/roles/geerlingguy.apache
+provisioning/roles/geerlingguy.mysql
+provisioning/roles/geerlingguy.repo-epel
 provisioning/roles/iambryancs*
+
+html/admin/db/*
 

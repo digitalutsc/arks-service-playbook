@@ -6,9 +6,9 @@
        A Noid minting and binding database has been created that will bind 
        and mint an unbounded number of identifiers
        with the template ".zd".
-       Sample identifiers would be "61220/utsc5" and "61220/utsc99353".
+       Sample identifiers would be "61220/utsc4" and "61220/utsc16724".
        Minting order is sequential.
-            when:      20210313112037
+            when:      20210313213138
             where:     ark-services:/var/www/vagrant/html/admin/db
             Version:   Noid 1.1.1-0.424-php
             Size:      unlimited

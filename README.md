@@ -2,14 +2,14 @@
 
 ## About
 
-This is the Ansible playbook for Ark Services web application (https://github.com/digitalutsc/ark-services).
+This is the Ansible playbook for Arks Service web application (https://github.com/digitalutsc/arks-service).
 
 ## Installation
 
 1. Open a Terminal, clone this repo to your machine, by running:
 
 ```
-git clone https://github.com/digitalutsc/ark-services-playbook.git
+git clone https://github.com/digitalutsc/arks-service-playbook.git
 ```
 
 2. To run the VM, `cd path/ark-services-playbook`, then run `vagrant up`.
@@ -30,6 +30,6 @@ git clone https://github.com/digitalutsc/ark-services-playbook.git
 
 ## Usage
 
-Please visit full documentation at https://github.com/digitalutsc/ark-services/wiki#usage
+Please visit full documentation at https://github.com/digitalutsc/arks-service/wiki#usage
 
 

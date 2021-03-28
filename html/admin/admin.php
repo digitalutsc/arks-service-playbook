@@ -101,6 +101,14 @@ $subheader .= "</p>";
               border-radius: 3px;
               font-size: xx-small;
             }
+
+            .dropdown a.cus {
+              padding-left: 0;
+              color: #007bff;
+            }
+            a.cus1 {
+              color: #007bff;
+            }
         </style>
         <script>
             var noidTemplates = {
@@ -289,7 +297,7 @@ $subheader .= "</p>";
                             extend: 'csv',
                             text: 'Export to CSV',
                             exportOptions: {
-                                columns: [1, 2, 3, 4, 5]
+                                columns: [1, 2, 3, 4]
                             }
                         },
                     ],
@@ -343,15 +351,21 @@ $subheader .= "</p>";
                             "targets": 3,
                             "data": "ark_url",
                             "render": function (data, type, row) {
+                                data.sort();
                                 var count = data.length;
-                                var ark_urls = '<p><a target="_blank" href="' + data[0] + '">' + data[0] + '</a></p>';
+                                var ark_urls = '';
                                 if (count >1) {
-                                   ark_urls += "<p>Derivatives:</p>";
-                                   ark_urls += "<ul>";
+                                   <?php $dropdown = "derevatives-". time(); ?>
+                                   ark_urls += '<div class="dropdown">' +
+                                               '<a target="_blank" class="btn btn-default cus" href="'+ data[0] +'">'+ data[0] +'</a>'
+                                  ark_urls += '<button type="button" class="btn btn-default dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"> <span class="sr-only">Toggle Dropdown</span> </button>';
+                                  ark_urls += '<div class="dropdown-menu" aria-labelledby="<?php echo $dropdown; ?>">';
+                                  ark_urls += '<h6 class="dropdown-header">With Qualifiers:</h6>';
                                   for (var i = 1; i < count; i ++){
-                                    ark_urls += "<li>"+'<a target="_blank" href="' + data[i] + '">' + data[i] + '</a>'+"</li>"
+
+                                    ark_urls += '<a class="dropdown-item cus1" target="_blank" href="' + data[i] + '">' + data[i] + '</a>';
                                   }
-                                  ark_urls += "<ul>";
+                                  ark_urls += "</div></div>";
                                 }
                                 else {
                                   ark_urls = '<a target="_blank" href="' + data[0] + '">' + data[0] + '</a>';
@@ -865,7 +879,10 @@ $subheader .= "</p>";
                                                     <div class="form-group">
                                                         <label for="enterKey">Key:</label>
                                                         <input type="text" class="form-control" id="enterKey"
-                                                               name="enterKey" required>
+                                                               name="enterKey" aria-describedby="keyHelp" required>
+                                                        <small id="keyHelp" class="form-text text-muted">Enter a metadata field or a qualifier.<br >
+                                                          <strong>Note:</strong> the field <i>URL</i> must be valid for Ark URL to work.
+                                                        </small>
                                                     </div>
                                                     <div class="form-group">
                                                         <label for="enterValue">Value:</label>

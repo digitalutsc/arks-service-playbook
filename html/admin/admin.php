@@ -587,12 +587,14 @@ $subheader .= "</p>";
                                    <small id="emailHelp" class="form-text text-muted">Exclusive For UTSC: collections.digital.utsc.utoronto.ca</small>
                                 </div>
 
-                                 <div class="form-group">
+                                 <input type="hidden" class="form-control" id="enterInsitutionName" name="enterInsitutionName" value="dsu/utsc-library"
+                                           />
+                                 <!--<div class="form-group" style="display:none">
                                     <label class="control-label" for="enterDatabaseName">Insitution Name(SubNAA):</label>
                                     <input type="text" class="form-control" id="enterInsitutionName" name="enterInsitutionName"
                                            />
                                    <small id="emailHelp" class="form-text text-muted">Exclusive For UTSC: dsu/utsc-library</small>
-                                </div>
+                                </div>-->
 
                                 <input type="submit" name="dbcreate" value="Create" class="btn btn-primary"/>
                             </form>
@@ -1011,7 +1013,7 @@ $subheader .= "</p>";
                                                         <hr/>
                                                         <div class="container">
                                                             <div class="form-group">
-                                                                <label for="enterPasswordPostBulkBind"><strong>For security measure, please enter admin password before bulk binding: </strong></label>
+                                                                <label for="enterPasswordPostBulkBind"><strong>Please enter admin password before bulk binding: </strong></label>
                                                                 <input required type="password" class="form-control" id="enterPasswordPostBulkBind" name="enterPasswordPostBulkBind"
                                                                        placeholder="Password">
                                                             </div>

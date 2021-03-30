@@ -58,7 +58,7 @@ if (Database::isInstalled()) {
 <div class="container">
     <div class="row">
         <div class="col-sm text-center">
-            <h1 class="text-center">Ark Service Installation</h1>
+            <h1 class="text-center">Arks Service Installation</h1>
         </div>
     </div>
     <div class="row">

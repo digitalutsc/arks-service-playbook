@@ -1,0 +1,5 @@
+config/MysqlArkConf.php
+admin/db/*
+
+# exception to the rule
+!admin/db/.gitkeep

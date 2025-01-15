@@ -26,7 +26,7 @@ class MysqlArkDB implements DatabaseInterface
             throw new Exception('NOID requires the extension "Mysql improved" (mysqli).');
         }
 
-        $this->handle = NULL;
+        //$this->handle = NULL;
     }
 
     /**
@@ -81,7 +81,7 @@ class MysqlArkDB implements DatabaseInterface
             }
 
             // Optimize the table for better performance.
-            $this->handle->query("OPTIMIZE TABLE `" . $this->db_name . "`");
+            //$this->handle->query("OPTIMIZE TABLE `" . $this->db_name . "`");
 
             return $this->handle;
         }
@@ -150,6 +150,23 @@ class MysqlArkDB implements DatabaseInterface
     }
 
     /**
+     * Query
+     * @param $query
+     * @return false|string
+     */
+    public function query($query) {
+        if (!($this->handle instanceof mysqli)) {
+            return FALSE;
+        }
+        $query = str_replace('<table-name>', $this->db_name, $query);
+
+        if ($res = $this->handle->query($query)) {
+            return $res->fetch_all(MYSQLI_ASSOC);
+        }
+        return FALSE;
+    }
+
+    /**
      * @param string $key
      * @param string $value
      *
@@ -185,6 +202,20 @@ class MysqlArkDB implements DatabaseInterface
 
         return $this->handle->query("DELETE FROM `" . $this->db_name . "` WHERE `_key` = '{$key}'");
     }
+
+    /**
+     * @param string $key
+     *
+     * @return bool
+     * @throws Exception
+     */
+    public function purge($where)
+    {
+        if (!($this->handle instanceof mysqli)) {
+            return FALSE;
+        }
+        return $this->handle->query("DELETE FROM `" . $this->db_name . "` WHERE " . $where);
+    } 
 
     /**
      * @param string $key

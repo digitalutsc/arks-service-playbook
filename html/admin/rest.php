@@ -18,9 +18,14 @@ if (!isset($_GET['db'])) {
 switch ($_GET['op']) {
     case "minted":
     {
-        echo getMinted();
+        echo getMinted(0);
         break;
     }
+    case "mintedDrop":
+      {
+          echo getMinted(1);
+          break;
+      }
     case "fields": {
         if (isset($_GET['ark_id']) ) {
             echo getFields($_GET['ark_id']);
@@ -43,6 +48,11 @@ switch ($_GET['op']) {
     case 'bound':
     {
         echo selectBound();
+        break;
+    }
+    case 'unbound':
+    {
+        echo selectUnBound();
         break;
     }
     case "pid": {
@@ -73,6 +83,16 @@ switch ($_GET['op']) {
         // backup database before bulk binding
         Database::backupArkDatabase();
         return json_encode(['success' => 1]);
+    }
+    case 'purge': {
+      if (isset($_GET['stage']) && $_GET['stage'] == 'upload'){
+        // return result status
+        echo purging();
+      }
+      else {
+          echo  json_encode("Invalid stage");
+      }
+      break;
     }
     case 'bulkbind': {
 
@@ -115,6 +135,38 @@ function getFields($ark_id) {
     return json_encode($json);
 }
 
+function handle_hierachy_variants() {
+
+}
+
+/**
+ * Handle ajax call for each row of CSV during purging existing metadata
+ */
+function purging() {
+  $status = true;
+  GlobalsArk::$db_type = 'ark_mysql';
+  if (!Database::exist($_GET['db'])) {
+    die(json_encode(['success' => 0, 'message' => 'Database not found']));
+  }
+  if (empty($_POST['security'])  ||  (Database::isAuth($_POST['security']) === false) ) {
+    die(json_encode(['success' => 401, 'message' => 'Security Credentials is invalid, Please verify it again.']));
+  }
+
+  $result = null;
+  $purged = 0;
+  if (is_array($_POST) && isset($_POST['data'])) {
+    $noid = Database::dbopen($_GET["db"], dbpath(), DatabaseInterface::DB_WRITE);
+
+    $parts = explode("/", $_POST['data'][strtoupper('Ark_ID')]);
+    $parts_count = count($parts);
+    $identifier = $parts[0]. "/" .$parts[1];
+
+    $where = "_key REGEXP '^" . $identifier ."\t' and _key NOT REGEXP ':/c$' and _key NOT REGEXP ':/h$' order by _key";
+    $status = Database::$engine->purge($where);
+  }
+  return json_encode(['success' => $status]);
+}
+
 /**
  *  Handle ajax call for each row of CSV during bulk binding import
  *
@@ -128,28 +180,68 @@ function bulkbind(){
   if (empty($_POST['security'])  ||  (Database::isAuth($_POST['security']) === false) ) {
     die(json_encode(['success' => 401, 'message' => 'Security Credentials is invalid, Please verify it again.']));
   }
-
+  
   $result = null;
+  $purged = 0;
   if (is_array($_POST) && isset($_POST['data'])) {
-    $noid = Database::dbopen($_GET["db"], dbpath(), DatabaseInterface::DB_WRITE);
+    $purged = $_POST['purged'];
     // capture identifier (strictly recommend first column)
     $contact = time();
 
     if (!empty($_POST['data'][strtoupper('Ark_ID')])) { // any pending data must has Ark_ID column
-        // check if the ARK ID has been bound before
+        $noid = Database::dbopen($_GET["db"], dbpath(), DatabaseInterface::DB_WRITE);
+        
+        $parts = explode("/", $_POST['data'][strtoupper('Ark_ID')]);
+        $parts_count = count($parts);
+        $identifier = $parts[0]. "/" .$parts[1];
+
+        // TODO: check if the column Ark_ID has "/" ==> handle with hierarchical
+        if (substr_count($_POST['data'][strtoupper('Ark_ID')], '/') > 1) { 
+          // this arks ID is hierarchical
+          $hierarchy = "/";
+          for ($i = 2; $i < $parts_count; $i++) {
+            if (strpos($parts[$i], ".") !== false) {
+              $hierarchy .= explode(".", $parts[$i])[0]; 
+            }
+            else {
+              $hierarchy .= $parts[$i]; 
+            }
+            if ($i < $parts_count-1)
+              $hierarchy .= "/";
+          }
+        }
+        
+        if (substr_count($_POST['data'][strtoupper('Ark_ID')], '.') > 0) { 
+          // this ark ID has variants
+          $parts_variants = explode(".", $parts[$parts_count-1]);
+          array_shift($parts_variants);
+          $variants = "." . implode(".", $parts_variants); 
+        }
+       
+        // Binding the new metadata
         foreach ($_POST['data'] as $key => $pair) {
           if ($key !== strtoupper('Ark_ID')) {
-            // check if ark ID exist
-            $identifier = $_POST['data'][strtoupper('Ark_ID')];
-            NoidArk::bind($noid, $contact, 1, 'set', $identifier, strtoupper($key), $pair);
+            
+            // if there is hierachy, ie 61220/utsc0	/page1 WHO
+            $key_field = "";
+            if ((isset($hierarchy) && $hierarchy !== "/")) {
+              $key_field = $hierarchy . "	";  
+            }
+            // if there is hierachy, ie 61220/utsc0	/page1.image.png
+            if (isset($variants)) { 
+              $key_field .= $variants . "	";
+            }
+            $key_field .= strtoupper($key);  
+
+            NoidArk::bind($noid, $contact, 1, 'set', $identifier, $key_field, $pair);
           }
         }
         Database::dbclose($noid);
-        return json_encode(['success' => 1]);
+        return json_encode(['success' => true]);
     }
     else {
       // todo: flag error of missing Ark ID column
-      return json_encode(['success' => 0]);
+      return json_encode(['success' => false]);
     }
   }
 }
@@ -272,84 +364,179 @@ function getDbInfo() {
  * Return bound objects in database
  * @return false|string
  */
+function selectUnBound()
+{
+  GlobalsArk::$db_type = 'ark_mysql';
+  if (!Database::exist($_GET['db'])) {
+    die(json_encode('Database not found'));
+  }
+
+  $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
+  $firstpart = Database::$engine->get(Globals::_RR . "/firstpart");
+  Database::dbclose($noid);
+
+  $columnIdx = $_GET['order'][0]['column'];
+  $sortCol = $_GET['columns'][$columnIdx];
+  $sortDir = $_GET['order'][0]['dir'] === 'asc' ? 'ASC' : 'DESC';
+  $offset = $_GET['start'] ?? 0;
+  $limit = $_GET['length'] ?? 50;
+  if ($_GET['length'] == -1) {
+    $limit = NULL;
+  }
+  $search = $_GET['search']['value'];
+  
+  // sql which gets the arks without any metadata bound
+  $sql_unboundarks = "SELECT id, REPLACE (id, '$firstpart', '') as _id
+  from (
+      SELECT DISTINCT REGEXP_SUBSTR(_key, '^([^\\\\s]+)') AS id 
+      FROM `<table-name>`
+      WHERE _key LIKE '$firstpart%' AND (_key LIKE '%$search%' OR _value LIKE '%$search%')
+      EXCEPT
+        SELECT DISTINCT REGEXP_SUBSTR(_key, '^([^\\\\s]+)') AS id 
+        FROM `<table-name>`
+        WHERE _key LIKE '$firstpart%' AND (_key NOT LIKE '%:\\\\/c' AND _key NOT LIKE '%:\\\\/h')
+  ) as list_ids
+  ORDER BY cast(_id as unsigned) $sortDir";
+
+// sql gets all unbound arks
+  $sql = "$sql_unboundarks LIMIT $limit OFFSET $offset";
+  $sql_count = "SELECT COUNT(*) as num_filtered
+     FROM (
+       $sql_unboundarks
+     ) AS filtered_ids
+  ";
+
+  $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
+  $rows = Database::$engine->query($sql);
+  $num_filtered = Database::$engine->query($sql_count)[0]['num_filtered'] ?? 0;
+  Database::dbclose($noid);
+
+  $currentID = null;
+  $result = array();
+  $r = [];
+
+  foreach ($rows as $row) {
+    $row = (array)$row;
+
+    $r['id'] = $row['id'];
+      
+    if (empty($_SERVER['HTTPS'])) {
+      $protocol = strtolower(substr($_SERVER["SERVER_PROTOCOL"], 0, strpos($_SERVER["SERVER_PROTOCOL"], '/'))) . '://';
+    }
+    else {
+      $protocol = "https://";
+    }
+    
+    // establish Ark URL
+    $arkURL = $protocol . $_SERVER['HTTP_HOST'];
+    $ark_url = rtrim($arkURL,"/") . "/ark:" . $row['id'];
+    $r['select'] = ' ';
+
+    // New: Link to ? or ?? 
+    $r['metadata'] = $ark_url . "?";
+    $r['policy'] = $ark_url . "??";
+    $r['ark_url'] = (array_key_exists("ark_url", $r) && is_array($r['ark_url']) && count($r['ark_url']) > 1) ? $r['ark_url'] : [$ark_url];
+
+    array_push($result, $r);
+  }
+
+  return json_encode(array(
+    "data" => $result,
+    "draw" => isset ( $_GET['draw'] ) ? intval( $_GET['draw'] ) : 0,
+    "recordsTotal" => countTotalArks(),
+    "recordsFiltered" => $num_filtered,
+  ));
+}
+  
+
+
+/**
+ * Return bound objects in database
+ * @return false|string
+ */
 function selectBound()
 {
   GlobalsArk::$db_type = 'ark_mysql';
   if (!Database::exist($_GET['db'])) {
     die(json_encode('Database not found'));
   }
-  $columns = json_decode(select());
-  //array_push($columns, (object)[]);
+  $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
+  $firstpart = Database::$engine->get(Globals::_RR . "/firstpart");
+  Database::dbclose($noid);
+
+  $columnIdx = $_GET['order'][0]['column'];
+  $sortCol = $_GET['columns'][$columnIdx];
+  $sortDir = $_GET['order'][0]['dir'] === 'asc' ? 'ASC' : 'DESC';
+  $offset = $_GET['start'] ?? 0;
+  $limit = $_GET['length'] ?? 50;
+  $search = $_GET['search']['value'];
+  
+  // sql which gets all bound arks 
+  $sql_boundarks = "SELECT id, REPLACE (id, '$firstpart', '') as _id
+      from (
+          SELECT DISTINCT REGEXP_SUBSTR(_key, '".$firstpart."[[:digit:]]+(\\t[/.]*.*\\t)*') AS id
+              FROM `<table-name>`
+              WHERE _key LIKE '$firstpart%' 
+              AND (_key NOT REGEXP '\\\\s:\\/c' AND _key NOT REGEXP '\\\\s:\\/h') 
+              AND (_key LIKE '%$search%' OR _value LIKE '%$search%')
+      ) as list_ids
+      ORDER BY cast(_id as unsigned) $sortDir";
+
+  $sql = "$sql_boundarks LIMIT $limit OFFSET $offset";
+  $sql_count = "SELECT COUNT(*) as num_filtered
+  FROM (
+    $sql_boundarks
+  ) AS filtered_ids
+  ";
+
+  $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
+  $rows = Database::$engine->query($sql);
+  $num_filtered = Database::$engine->query($sql_count)[0]['num_filtered'] ?? 0;
+  Database::dbclose($noid);
+
   $currentID = null;
   $result = array();
   $r = [];
-  $countColumns = count($columns);
-  $index = 1;
-  $qualifiers = [];
 
-  foreach ($columns as $column) {
-    $column = (array)$column;
+  foreach ($rows as $row) {
+    $row = (array)$row;
 
-    if (isset($column['_key'])) {
-      $key_data = preg_split('/\s+/', $column['_key']);
-      //print_r($column);
-      if (!isset($currentID) || ($currentID !== $key_data[0])) {
-        $currentID = $key_data[0];
-        if (is_array($r) && count($r) > 0) {
-          if(!array_key_exists('PID', $r)) {
-            $r['PID'] = " ";
-          }
-          if(!array_key_exists('LOCAL_ID', $r)) {
-            $r['LOCAL_ID'] = " ";
-          }
-          array_push($result, $r);
-        }
-
-          $r = [];
-      }
-      $r['select'] = " ";
-      $r['id'] = $currentID;
-      if ($key_data[1] == 'PID')
-        $r['PID'] = (!empty($column['_value'])) ? $column['_value'] : ' ';
-      if ($key_data[1] == "LOCAL_ID")
-        $r['LOCAL_ID'] = (!empty($column['_value'])) ? $column['_value'] : ' ';
-      if ($key_data[1] == "REDIRECT")
-        $r['redirect'] = (!empty($column['_value'])) ? $column['_value'] : ' ';
-      $r['metadata'] = (!empty($r['metadata']) ? $r['metadata'] . "|" : "") . $key_data[1] .':' .$column['_value'];
-
-      // check if server have https://, if not, go with http://
-      if (empty($_SERVER['HTTPS'])) {
-        $protocol = strtolower(substr($_SERVER["SERVER_PROTOCOL"], 0, strpos($_SERVER["SERVER_PROTOCOL"], '/'))) . '://';
-      }
-      else {
-        $protocol = "https://";
-      }
-
-      $arkURL = $protocol . $_SERVER['HTTP_HOST'];
-      // establish Ark URL
-      $ark_url = rtrim($arkURL,"/") . "/ark:/" . $currentID;
-      $r['ark_url'] = (array_key_exists("ark_url", $r) && is_array($r['ark_url']) && count($r['ark_url']) > 1) ? $r['ark_url'] : [$ark_url];
-
-      // if there is qualifier bound to an Ark ID, establish the link the link
-      if ($key_data[1] !== "URL" && filter_var($column['_value'], FILTER_VALIDATE_URL)) {
-        array_push($r['ark_url'], strtolower($ark_url. "/". $key_data[1]));
-      }
-
+    $r['id'] = preg_replace('/\s+/', '', $row['id']);
+    if (empty($_SERVER['HTTPS'])) {
+      $protocol = strtolower(substr($_SERVER["SERVER_PROTOCOL"], 0, strpos($_SERVER["SERVER_PROTOCOL"], '/'))) . '://';
     }
-
-    // if the loop reach the last pair of elements (for incompleted bind)
-    if ($index === $countColumns) {
-      if(!array_key_exists('PID', $r)) {
-        $r['PID'] = " ";
-      }
-      /*if(!array_key_exists('LOCAL_ID', $r)) {
-        $r['LOCAL_ID'] = " ";
-      }*/
-      array_push($result, $r);
+    else {
+      $protocol = "https://";
     }
-    $index++;
+    
+    // establish Ark URL
+    $arkURL = $protocol . $_SERVER['HTTP_HOST'];
+    $ark_url = rtrim($arkURL,"/") . "/ark:" . $row['id'];
+    $ark_url = preg_replace('/\s+/', '', $ark_url);
+    $r['select'] = ' ';
+    
+    /*if ($limit != 2147483647) {
+      $redirect = getRedirects($row['id']);
+      $r['redirect'] = (!empty($redirect)) ? $redirect : 0;
+    }
+    else {
+      $r['redirect'] = " ";
+    }*/
+    
+    // New: Link to ? or ?? 
+    $r['metadata'] = $ark_url . "?";
+    $r['policy'] = $ark_url . "??";
+    $r['ark_url'] = (array_key_exists("ark_url", $r) && is_array($r['ark_url']) && count($r['ark_url']) > 1) ? $r['ark_url'] : [$ark_url];
+
+    array_push($result, $r);
   }
-  return json_encode($result);
+
+  return json_encode(array(
+    "data" => $result,
+    "draw" => isset ( $_GET['draw'] ) ? intval( $_GET['draw'] ) : 0,
+    "recordsTotal" => countTotalArks(),
+    "recordsFiltered" => $num_filtered,
+  ));
 }
 
 /**
@@ -398,6 +585,28 @@ function getPID($arkID) {
 }
 
 /**
+ * Get Ark PID for ark ID
+ * @param $arkID
+ * @return false|string
+ */
+function getRedirects($arkID) {
+  if (!isset($arkID))
+      return "Ark ID is not valid";
+  GlobalsArk::$db_type = 'ark_mysql';
+  if (!Database::exist($_GET['db'])) {
+      die(json_encode('Database not found'));
+  }
+  $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
+  return NoidArk::fetch($noid, 0, $arkID, ['REDIRECT']);
+  Database::dbclose($noid);
+
+  //$result = Database::$engine->select("_key = '$arkID REDIRECT'");
+  
+  
+  return (is_array($result) && count($result)> 0) ? $result[0]['_value'] : '';
+}
+
+/**
  * @param $arkID
  * @return false|string
  */
@@ -418,29 +627,93 @@ function getURL($arkID) {
  * Get minted Ark IDs
  * @return false|string
  */
-function getMinted()
+function getMinted($mode)
 {
-    GlobalsArk::$db_type = 'ark_mysql';
-    if (!Database::exist($_GET['db'])) {
-        die(json_encode('Database not found'));
-    }
-    $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
-    $firstpart = Database::$engine->get(Globals::_RR . "/firstpart");
-    $result = Database::$engine->select("_key REGEXP '^$firstpart' and _key REGEXP ':/c$'");
-    //return json_encode($result);
-    $json = array();
-    foreach ($result as $row) {
-        $urow = array();
-        $urow['select']= ' ';
-        $urow['_key'] = trim(str_replace(":/c", "", $row['_key']));
+  $totalArks = countTotalArks();
+  GlobalsArk::$db_type = 'ark_mysql';
+  if (!Database::exist($_GET['db'])) {
+    die(json_encode('Database not found'));
+  }
+  $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
+  $firstpart = Database::$engine->get(Globals::_RR . "/firstpart");
+  Database::dbclose($noid);
 
-        $metadata = explode('|', $row['_value']);
-        //$urow['_value'] = date("F j, Y, g:i a", $metadata[2]);
-        $urow['_value'] = date("F j, Y", $metadata[2]);
-        array_push($json, (object)$urow);
-    }
-    Database::dbclose($noid);
-    return json_encode($json);
+  if (isset($_GET['order'][0]['dir'])) {
+    $sortDir = $_GET['order'][0]['dir'] === 'asc' ? 'ASC' : 'DESC';
+  } else {
+    $sortDir = 'DESC';
+  }
+  if($mode === 1){
+    $limit = $totalArks;
+  }else{
+    $limit = $_GET['length'] ?? 50;
+  }
+  $offset = $_GET['start'] ?? 0;
+  $search = $_GET['search']['value'];
+
+  $sql = "SELECT REGEXP_SUBSTR(_key, '^([^\\\\s]+)') AS id, _value, SUBSTRING_INDEX(SUBSTRING_INDEX(_value,'|',4), '|', -1) AS seq
+    FROM `<table-name>`
+    WHERE _key LIKE '$firstpart%' AND _key REGEXP '\\\\s:\/c$' AND (_key LIKE '%$search%' OR _value LIKE '%$search%')
+    ORDER BY  cast(seq as unsigned) $sortDir
+    LIMIT $limit
+    OFFSET $offset;
+  ";
+  
+  $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
+  $result = Database::$engine->query($sql);
+  Database::dbclose($noid);
+
+  $json = array();
+  foreach ($result as $row) {
+    $urow = array();
+    $urow['select'] = ' ';
+    $urow['_key'] = $row['id'];
+
+    $metadata = explode('|', $row['_value']);
+    //$urow['_value'] = date("F j, Y, g:i a", $metadata[2]);
+    $urow['_value'] = date("F j, Y", $metadata[2]);
+    array_push($json, (object)$urow);
+  }
+
+  return json_encode(array(
+    "data" => $json,
+    "draw" => isset ( $_GET['draw'] ) ? intval( $_GET['draw'] ) : 0,
+    "recordsTotal" => $totalArks,
+    "recordsFiltered" => $totalArks,
+  ));
+}
+
+/**
+ * Count total Ark 
+ */
+function countTotalArks() {
+  GlobalsArk::$db_type = 'ark_mysql';
+  if (!Database::exist($_GET['db'])) {
+      die(json_encode('Database not found'));
+  }
+  $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
+  $total = Database::$engine->get(Globals::_RR . "/oacounter");
+  Database::dbclose($noid);
+  return $total;
+}
+
+/**
+ * Count arks IDs that are bound with metadata
+ */
+function countBoundedArks() {
+  GlobalsArk::$db_type = 'ark_mysql';
+  if (!Database::exist($_GET['db'])) {
+      die(json_encode('Database not found'));
+  }
+  $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
+  $firstpart = Database::$engine->get(Globals::_RR . "/firstpart");
+  $result = Database::$engine->query("SELECT COUNT(
+    DISTINCT REGEXP_SUBSTR(_key, '^([^\\\\s]+)')) AS total 
+    FROM `<table-name>` 
+    WHERE _key LIKE '$firstpart%' AND _key REGEXP '(\\\\s:\\/c|\\\\s:\\/h)$';
+  ");
+  Database::dbclose($noid);
+  return $result[0]['total'] ?? 0;
 }
 
 /**
@@ -455,6 +728,7 @@ function getfirstpart()
     }
     $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
     $firstpart = Database::$engine->get(Globals::_RR . "/firstpart");
+    Database::dbclose($noid);
     return json_encode($firstpart);
 }
 
@@ -470,5 +744,6 @@ function getPrefix() {
     }
     $noid = Database::dbopen($_GET["db"], getcwd() . "/db/", DatabaseInterface::DB_WRITE);
     $prefix = Database::$engine->get(Globals::_RR . "/prefix");
+    Database::dbclose($noid);
     return json_encode($prefix);
 }
